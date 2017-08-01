@@ -7,11 +7,30 @@ import (
 	"time"
 )
 
+const (
+	PC_NAME   = "HAL"
+	PC_SHOTS  = 9999
+
+	STATUS_DESTROY_BASE = "XX"
+	STATUS_FIRE_BASE = "/\\"
+	STATUS_OK_BASE = "00"
+	SEA_BASE  = "  "
+
+    STATUS_OK = iota // 0
+    STATUS_DESTROY   // 1
+    STATUS_FIRE      // 2
+)
+
 type Game struct {
-	Sea_a Sea
-	Sea_b Sea
-	Moves_vs_a []Coordinates
-	Moves_vs_b []Coordinates
+	FirstPlayer Player
+	SecondPlayer Player
+}
+
+type Player struct {
+	Name 	string
+	Sea 	Sea
+	Moves 	[]Coordinates
+	GunShot int
 }
 
 type Sea struct {
@@ -24,12 +43,12 @@ type Sea struct {
 type Ship struct {
 	Dimension int
 	Positions []Coordinates
-	Available []Coordinates
 }
 
 type Coordinates struct {
 	Abscissa int
 	Ordinate int
+	// 0 ok 1 hit
 	Status   int
 }
 
@@ -48,6 +67,29 @@ func search(a int, b []int) bool {
 	return false
 }
 
+func PrepareGame(d int, m int, na string, sa int, ga int, nb string, sb int, gb int) (g Game) {
+
+	pf := Player{}
+	ps := Player{}
+
+	if m == 0 {
+		pf = Player{Name: na, GunShot: ga, Sea: PrepareSea(d, sa)}
+		ps = Player{Name: PC_NAME, GunShot: PC_SHOTS, Sea: PrepareSea(d, sb)}
+	}
+	g = Game{FirstPlayer: pf, SecondPlayer: ps}
+	return
+
+}
+
+// PrepareSea return a Sea struct given Dimension: n
+func PreparePlayer(n string, g int, s Sea) (p Player) {
+
+	p = Player{Name: n, GunShot: g, Sea: s, Moves: []Coordinates{}}
+
+	return
+
+}
+
 // PrepareSea return a Sea struct given Dimension: n
 func PrepareSea(n int, s int) (sea Sea) {
 
@@ -57,7 +99,7 @@ func PrepareSea(n int, s int) (sea Sea) {
 
 		st := PrepareShip(i+1, n)
 		if !CheckCollisions(st, ss) {
-			ss = append(ss, PrepareShip(i+1, n))
+			ss[i] = PrepareShip(i+1, n)
 		} else {
 			i--
 		}
@@ -76,14 +118,11 @@ func PrepareShip(n int, m int) (s Ship) {
 
 	p := make([]Coordinates, n)
 
-	a := make([]Coordinates, n)
-
 	if n == 1 {
 
 		x := random(1, m)
 		y := random(1, m)
 		p[0] = Coordinates{Abscissa: x, Ordinate: y}
-		a[0] = Coordinates{Abscissa: x, Ordinate: y}
 
 	} else {
 
@@ -95,19 +134,17 @@ func PrepareShip(n int, m int) (s Ship) {
 			if h {
 
 				p[t] = Coordinates{Abscissa: x + t, Ordinate: y}
-				a[t] = Coordinates{Abscissa: x + t, Ordinate: y}
 
 			} else {
 
 				p[t] = Coordinates{Abscissa: y, Ordinate: x + t}
-				a[t] = Coordinates{Abscissa: y, Ordinate: x + t}
 
 			}
 		}
 
 	}
 
-	s = Ship{Dimension: n, Positions: p, Available: a}
+	s = Ship{Dimension: n, Positions: p}
 	return
 
 }
@@ -136,16 +173,29 @@ func CheckCollision(a Ship, b Ship) bool {
 
 }
 
-func CheckPosition(x int, y int, s Sea) bool {
+func CheckShot(p Coordinates, s Sea) (bool, int, int) {
 
-	for _, sv := range s.Ships {
-		for _, cv := range sv.Positions {
-			if x == cv.Abscissa && y == cv.Ordinate {
-				return true
+	for si, sv := range s.Ships {
+		for ci, cv := range sv.Positions {
+			if p.Abscissa == cv.Abscissa && p.Ordinate == cv.Ordinate {
+				return true, si, ci
 			}
 		}
 	}
-	return false
+	return false, -1, -1
+
+}
+
+func CheckPosition(x int, y int, s Sea) (bool, int, int) {
+
+	for si, sv := range s.Ships {
+		for ci, cv := range sv.Positions {
+			if x == cv.Abscissa && y == cv.Ordinate {
+				return true, si, ci
+			}
+		}
+	}
+	return false, -1, -1
 
 }
 
@@ -191,10 +241,18 @@ func StringfySea(s Sea) (ss string) {
 
 		ss += "|"
 		for c := 0; c < s.Dimension; c++ {
-			if CheckPosition(r+1, c+1, s) {
-				ss += " ** |"
+			rp, si, ci := CheckPosition(r+1, c+1, s)
+			if rp {
+				switch s.Ships[si].Positions[ci].Status {
+					case STATUS_DESTROY:
+						ss += " "+STATUS_DESTROY_BASE+" |"
+					case STATUS_FIRE:
+						ss += " "+STATUS_FIRE_BASE+" |"
+					default:
+						ss += " "+STATUS_OK_BASE+" |"
+				}
 			} else {
-				ss += "    |"
+				ss += " "+SEA_BASE+" |"
 			}
 		}
 		ss += "\n"
@@ -210,10 +268,30 @@ func StringfySea(s Sea) (ss string) {
 
 }
 
+func (g Game) GunShot(f *Player, t *Player, p Coordinates) {
+
+	if f.GunShot > 0 {
+		f.Moves = append(f.Moves, p)
+		f.GunShot--
+	}
+	rs, si, ci := CheckShot(p, t.Sea)
+	if rs {
+		g.FirstPlayer.Moves = append(g.FirstPlayer.Moves, p)
+		g.SecondPlayer.Sea.Ships[si].Positions[ci].Status = STATUS_DESTROY
+	}
+
+}
+
 func main() {
 
-	s := PrepareSea(10, 5)
-	fmt.Println(SeaPrettyInfo(s))
-	fmt.Println(StringfySea(s))
+	//s := PrepareSea(10, 5)
+	//fmt.Println(SeaPrettyInfo(s))
+	//fmt.Println(StringfySea(s))
+	g := PrepareGame(10, 0, "Matteo", 5, 9999, "HAL", 5, 9999)
+	fmt.Println(StringfySea(g.FirstPlayer.Sea))
+	fmt.Println(StringfySea(g.SecondPlayer.Sea))
+	//fmt.Println(g.SecondPlayer.Sea.Ships)
+	g.GunShot(&g.FirstPlayer, &g.SecondPlayer, g.SecondPlayer.Sea.Ships[0].Positions[0])
+	fmt.Println(StringfySea(g.SecondPlayer.Sea))
 
 }
