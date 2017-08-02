@@ -5,10 +5,10 @@ import (
 	"fmt"
 	core "github.com/made2591/go-battleship/core"
 	//util "github.com/made2591/go-battleship/util"
+	"bufio"
+	"bytes"
 	"net/http"
 	"os"
-	"bytes"
-	"bufio"
 	"strconv"
 	//"time"
 )
@@ -21,26 +21,27 @@ const (
 func start(g *core.Game) {
 
 	fmt.Println(">>> request new game...")
-	res, _ := http.Get("http://"+HOST_NAME+":"+HOST_PORT+"/start")
+	res, _ := http.Get("http://" + HOST_NAME + ":" + HOST_PORT + "/start")
 	json.NewDecoder(res.Body).Decode(g)
-	core.NetPrintGame(g)
+	core.NetPrintGame(g, 0)
 
 }
 
-func checkChoice(c int) bool {
+func checkChoice(c int) (b bool) {
 	switch c {
-		case 1:
-			return true
-		case 2:
-			return true
-		case 3:
-			return true
-		default:
-			return false
+	case 1:
+		b = true
+	case 2:
+		b = true
+	case 3:
+		b = true
+	default:
+		b = false
 	}
+	return
 }
 
-func menu() string {
+func menu() int {
 
 	menuOption := `Enter next move:
 	1) Start
@@ -48,52 +49,55 @@ func menu() string {
 	3) Exit`
 
 	choiceError := `Choice not available: press enter to continue...`
-	reader := bufio.NewReader(os.Stdin)
-	text := ""
-	
+	i := 0
+
 	for {
 		//util.CleanScreen()
 		fmt.Println(menuOption)
-		text, _ = reader.ReadString('\n')
-		fmt.Println(text)
-		itext, err := strconv.Atoi(text)
+		_, err := fmt.Scanf("%d", &i)
+		fmt.Println(i)
 		if err != nil {
-			if checkChoice(itext) {
+			fmt.Println(choiceError)
+		} else {
+			if checkChoice(i) {
 				break
 			} else {
 				fmt.Println(choiceError)
 			}
-		} else {
-			fmt.Println(choiceError)
 		}
 	}
-	
-	return text
+	return i
 
 }
 
-func play(a string, g *core.Game) {
+func play(a int, g *core.Game) {
 
 	reader := bufio.NewReader(os.Stdin)
 
 	switch a {
-		case "1":
-			start(g)
-		case "2":
-			fmt.Println("x: ")
-			x, _ := reader.ReadString('\n')
-			ix, _ := strconv.Atoi(x)
-			fmt.Println("y: ")
-			y, _ := reader.ReadString('\n')
-			iy, _ := strconv.Atoi(y)
-			g.GunShot(&g.FirstPlayer, &g.SecondPlayer, core.Coordinates{Abscissa: int(ix), Ordinate: int(iy)})
-			core.NetPrintGame(g)
-			jsonValue, _ := json.Marshal(g)
-			res, _ := http.Post("http://"+HOST_NAME+":"+HOST_PORT+"/gunshot", "application/json", bytes.NewBuffer(jsonValue))
-			json.NewDecoder(res.Body).Decode(g)
-			core.NetPrintGame(g)
-		case "3":
-			break
+	case 1:
+		start(g)
+	case 2:
+		fmt.Printf("x: ")
+		x, _ := reader.ReadString('\n')
+		ix, _ := strconv.Atoi(x)
+		fmt.Printf("y: ")
+		y, _ := reader.ReadString('\n')
+		iy, _ := strconv.Atoi(y)
+		g.GunShot(&g.FirstPlayer, &g.SecondPlayer, core.Coordinates{Abscissa: int(ix), Ordinate: int(iy)})
+		bbb, _ := json.Marshal(g)
+		fmt.Println(string(bbb))
+		fmt.Printf(">>> press ENTER to go on...\n")
+		reader.ReadString('\n')
+		core.NetPrintGame(g, 0)
+		fmt.Printf(">>> press ENTER to go on...\n")
+		reader.ReadString('\n')
+		js, _ := json.Marshal(g)
+		res, _ := http.Post("http://"+HOST_NAME+":"+HOST_PORT+"/gunshot", "application/json", bytes.NewBuffer(js))
+		json.NewDecoder(res.Body).Decode(g)
+		core.NetPrintGame(g, 0)
+	case 3:
+		break
 	}
 
 }

@@ -2,26 +2,30 @@ package core
 
 import (
 	"fmt"
-//	"math/rand"
-	"strconv"
-	util "github.com/made2591/go-battleship/util"
+	//	"math/rand"
 	"encoding/json"
+	util "github.com/made2591/go-battleship/util"
 	"net/http"
-//	"time"
+	"strconv"
+	//	"time"
 )
 
 const (
 	PC_NAME  = "HAL"
 	PC_SHOTS = 9999
 
+	STATUS_OK_BASE      = "00"
 	STATUS_DESTROY_BASE = "XX"
 	STATUS_FIRE_BASE    = "/\\"
-	STATUS_OK_BASE      = "00"
 	SEA_BASE            = "  "
+	SEA_SHOT_BASE       = "~~"
 
 	STATUS_OK      = iota // 0
 	STATUS_DESTROY        // 1
 	STATUS_FIRE           // 2
+	SEA                   // 3
+	SEA_SHOT              // 4
+
 )
 
 type Game struct {
@@ -41,6 +45,7 @@ type Sea struct {
 	Grid      [][]int       `json:"Grid"`
 	Ships     []Ship        `json:"Ships"`
 	Moves     []Coordinates `json:"Moves"`
+	Suffered  []Coordinates `json:"Suffered"`
 }
 
 type Ship struct {
@@ -94,7 +99,7 @@ func PrepareSea(n int, s int) (sea Sea) {
 
 	}
 
-	sea = Sea{Dimension: n, Grid: make([][]int, n), Ships: ss, Moves: []Coordinates{}}
+	sea = Sea{Dimension: n, Grid: make([][]int, n), Ships: ss, Moves: []Coordinates{}, Suffered: []Coordinates{}}
 
 	return
 
@@ -174,7 +179,7 @@ func CheckShot(p Coordinates, s Sea) (bool, int, int) {
 
 }
 
-func CheckPosition(x int, y int, s Sea) (bool, int, int) {
+func CheckShipPosition(x int, y int, s Sea) (bool, int, int) {
 
 	for si, sv := range s.Ships {
 		for ci, cv := range sv.Positions {
@@ -184,6 +189,17 @@ func CheckPosition(x int, y int, s Sea) (bool, int, int) {
 		}
 	}
 	return false, -1, -1
+
+}
+
+func CheckSeaPosition(x int, y int, s Sea) (bool, int) {
+
+	for pi, pv := range s.Suffered {
+		if x == pv.Abscissa && y == pv.Ordinate {
+			return true, pi
+		}
+	}
+	return false, -1
 
 }
 
@@ -229,7 +245,7 @@ func StringfySea(s Sea) (ss string) {
 
 		ss += "|"
 		for c := 0; c < s.Dimension; c++ {
-			rp, si, ci := CheckPosition(r+1, c+1, s)
+			rp, si, ci := CheckShipPosition(r+1, c+1, s)
 			if rp {
 				switch s.Ships[si].Positions[ci].Status {
 				case STATUS_DESTROY:
@@ -240,7 +256,17 @@ func StringfySea(s Sea) (ss string) {
 					ss += " " + STATUS_OK_BASE + " |"
 				}
 			} else {
-				ss += " " + SEA_BASE + " |"
+				pp, pi := CheckSeaPosition(r+1, c+1, s)
+				if pp {
+					switch s.Suffered[pi].Status {
+					case SEA_SHOT:
+						ss += " " + SEA_SHOT_BASE + " |"
+					default:
+						ss += " " + SEA_BASE + " |"
+					}
+				} else {
+					ss += " " + SEA_BASE + " |"
+				}
 			}
 		}
 		ss += "\n"
@@ -259,29 +285,39 @@ func StringfySea(s Sea) (ss string) {
 func (g Game) GunShot(f *Player, t *Player, p Coordinates) {
 
 	if f.GunShot > 0 {
-		f.Moves = append(f.Moves, p)
 		f.GunShot--
 	}
 	rs, si, ci := CheckShot(p, t.Sea)
 	if rs {
 		g.FirstPlayer.Moves = append(g.FirstPlayer.Moves, p)
 		g.SecondPlayer.Sea.Ships[si].Positions[ci].Status = STATUS_DESTROY
+		p.Status = SEA_SHOT
+	} else {
+		p.Status = SEA
+	}
+	g.SecondPlayer.Sea.Suffered = append(g.SecondPlayer.Sea.Suffered, p)
+
+}
+
+func NetPrintGame(g *Game, m int) {
+
+	util.CleanScreen()
+	if m == 0 {
+		fmt.Printf(">>> %s's sea\n", g.FirstPlayer.Name)
+		fmt.Println(StringfySea(g.FirstPlayer.Sea))
+		fmt.Printf(">>> %s's sea\n", g.SecondPlayer.Name)
+		fmt.Println(StringfySea(g.SecondPlayer.Sea))
+	}
+	if m == 1 {
+		fmt.Printf(">>> %s's sea\n", g.SecondPlayer.Name)
+		fmt.Println(StringfySea(g.SecondPlayer.Sea))
+		fmt.Printf(">>> %s's sea\n", g.FirstPlayer.Name)
+		fmt.Println(StringfySea(g.FirstPlayer.Sea))
 	}
 
 }
 
-func NetPrintGame(g *Game) {
-
-	util.CleanScreen()
-	fmt.Println(g.FirstPlayer.Name)
-	fmt.Println(StringfySea(g.FirstPlayer.Sea))
-	fmt.Println(g.SecondPlayer.Name)
-	fmt.Println(StringfySea(g.SecondPlayer.Sea))
-
-}
-
-func NetGunShot(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(">>> gun shot coordinates...")
+func ServerGunShot(w http.ResponseWriter, r *http.Request) {
 	d := json.NewDecoder(r.Body)
 	g := Game{}
 	err := d.Decode(&g)
@@ -291,11 +327,18 @@ func NetGunShot(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	s := util.Random(0, len(g.SecondPlayer.Sea.Ships)-1)
 	p := util.Random(0, len(g.SecondPlayer.Sea.Ships[s].Positions)-1)
-	g.GunShot(&g.FirstPlayer, &g.SecondPlayer, g.SecondPlayer.Sea.Ships[s].Positions[p])
-	print(&g)
+		g.SecondPlayer.Sea.Ships[s].Positions[p].Abscissa,
+		g.SecondPlayer.Sea.Ships[s].Positions[p].Ordinate)
+	g.GunShot(&g.SecondPlayer, &g.FirstPlayer, g.SecondPlayer.Sea.Ships[s].Positions[p])
+	fmt.Printf(">>> gun shot coordinates [%d, %d]\n",
+	fmt.Printf(">>> press ENTER to go on...\n")
+	reader.ReadString('\n')
+	core.NetPrintGame(g, 0)
+	fmt.Printf(">>> press ENTER to go on...\n")
+	reader.ReadString('\n')
+	NetPrintGame(&g, 1)
 	json.NewEncoder(w).Encode(g)
 }
-
 
 func main() {
 
