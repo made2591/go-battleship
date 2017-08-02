@@ -81,20 +81,34 @@ func play(a int, g *core.Game) {
 		fmt.Printf("x: ")
 		x, _ := reader.ReadString('\n')
 		ix, _ := strconv.Atoi(x)
+
 		fmt.Printf("y: ")
 		y, _ := reader.ReadString('\n')
 		iy, _ := strconv.Atoi(y)
+
 		g.GunShot(&g.FirstPlayer, &g.SecondPlayer, core.Coordinates{Abscissa: int(ix), Ordinate: int(iy)})
+
 		bbb, _ := json.Marshal(g)
 		fmt.Println(string(bbb))
+
 		fmt.Printf(">>> press ENTER to go on...\n")
 		reader.ReadString('\n')
+
 		core.NetPrintGame(g, 0)
+
 		fmt.Printf(">>> press ENTER to go on...\n")
 		reader.ReadString('\n')
+
 		js, _ := json.Marshal(g)
 		res, _ := http.Post("http://"+HOST_NAME+":"+HOST_PORT+"/gunshot", "application/json", bytes.NewBuffer(js))
 		json.NewDecoder(res.Body).Decode(g)
+
+		fmt.Printf(">>> shot received in coordinates [%d, %d]\n",
+			g.FirstPlayer.Suffered[len(g.FirstPlayer.Suffered)-1].Abscissa,
+			g.FirstPlayer.Suffered[len(g.FirstPlayer.Suffered)-1].Ordinate)
+		fmt.Printf(">>> press ENTER to go on...\n")
+		reader.ReadString('\n')
+
 		core.NetPrintGame(g, 0)
 	case 3:
 		break
