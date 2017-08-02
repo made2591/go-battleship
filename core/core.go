@@ -2,9 +2,12 @@ package core
 
 import (
 	"fmt"
-	"math/rand"
+//	"math/rand"
 	"strconv"
-	"time"
+	util "github.com/made2591/go-battleship/util"
+	"encoding/json"
+	"net/http"
+//	"time"
 )
 
 const (
@@ -50,21 +53,6 @@ type Coordinates struct {
 	Ordinate int `json:"Ordinate"`
 	// 0 ok 1 hit
 	Status int `json:"Status"`
-}
-
-func random(min, max int) int {
-	max = max + 1
-	rand.Seed(time.Now().Unix())
-	return rand.Intn(max-min) + min
-}
-
-func search(a int, b []int) bool {
-	for _, v := range b {
-		if v == a {
-			return true
-		}
-	}
-	return false
 }
 
 func PrepareGame(d int, m int, na string, sa int, ga int, nb string, sb int, gb int) (g Game) {
@@ -114,20 +102,20 @@ func PrepareSea(n int, s int) (sea Sea) {
 
 func PrepareShip(n int, m int) (s Ship) {
 
-	h := random(0, 1) == 1
+	h := util.Random(0, 1) == 1
 
 	p := make([]Coordinates, n)
 
 	if n == 1 {
 
-		x := random(1, m)
-		y := random(1, m)
+		x := util.Random(1, m)
+		y := util.Random(1, m)
 		p[0] = Coordinates{Abscissa: x, Ordinate: y}
 
 	} else {
 
-		x := random(1, m-n)
-		y := random(1, m)
+		x := util.Random(1, m-n)
+		y := util.Random(1, m)
 
 		for t := 0; t < n; t++ {
 
@@ -281,6 +269,33 @@ func (g Game) GunShot(f *Player, t *Player, p Coordinates) {
 	}
 
 }
+
+func NetPrintGame(g *Game) {
+
+	util.CleanScreen()
+	fmt.Println(g.FirstPlayer.Name)
+	fmt.Println(StringfySea(g.FirstPlayer.Sea))
+	fmt.Println(g.SecondPlayer.Name)
+	fmt.Println(StringfySea(g.SecondPlayer.Sea))
+
+}
+
+func NetGunShot(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(">>> gun shot coordinates...")
+	d := json.NewDecoder(r.Body)
+	g := Game{}
+	err := d.Decode(&g)
+	if err != nil {
+		panic(err)
+	}
+	defer r.Body.Close()
+	s := util.Random(0, len(g.SecondPlayer.Sea.Ships)-1)
+	p := util.Random(0, len(g.SecondPlayer.Sea.Ships[s].Positions)-1)
+	g.GunShot(&g.FirstPlayer, &g.SecondPlayer, g.SecondPlayer.Sea.Ships[s].Positions[p])
+	print(&g)
+	json.NewEncoder(w).Encode(g)
+}
+
 
 func main() {
 
