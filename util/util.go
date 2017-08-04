@@ -1,11 +1,11 @@
 package util
 
 import (
-
 	"math/rand"
 	"time"
 	"fmt"
-	
+	"net/http"
+	"os"	
 )
 
 const (
@@ -41,4 +41,9 @@ func CleanScreen() {
 	}
 	fmt.Printf("\033[0;0H")
 
+}
+
+func Exit(w http.ResponseWriter, r *http.Request) {
+	CleanScreen()
+	os.Exit(1)
 }

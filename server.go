@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	core "github.com/made2591/go-battleship/core"
+	util "github.com/made2591/go-battleship/util"
 	"net/http"
 )
 
@@ -20,7 +21,9 @@ func start(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	util.CleanScreen()
 	http.HandleFunc("/start", start)
 	http.HandleFunc("/gunshot", core.ServerGunShot)
+	http.HandleFunc("/exit", util.Exit)
 	http.ListenAndServe(":8080", nil)
 }
