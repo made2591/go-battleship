@@ -15,7 +15,7 @@ const (
 func start(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(">>> new game generation...")
 	g := core.PrepareGame(10, 0, "Matteo", 5, 9999, "HAL", 5, 9999)
-	core.NetPrintGame(&g, 1)
+	core.PrettyPrintGame(&g, 1)
 	json.NewEncoder(w).Encode(g)
 }
 

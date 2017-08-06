@@ -23,7 +23,7 @@ func start(g *core.Game) {
 	fmt.Println(">>> request new game...")
 	res, _ := http.Get("http://" + HOST_NAME + ":" + HOST_PORT + "/start")
 	json.NewDecoder(res.Body).Decode(g)
-	core.NetPrintGame(g, 0)
+	core.PrettyPrintGame(g, 0)
 
 }
 
@@ -94,7 +94,7 @@ func play(a int, g *core.Game) {
 		fmt.Printf(">>> press ENTER to go on...\n")
 		reader.ReadString('\n')
 
-		core.NetPrintGame(g, 0)
+		core.PrettyPrintGame(g, 0)
 
 		fmt.Printf(">>> press ENTER to go on...\n")
 		reader.ReadString('\n')
@@ -109,7 +109,7 @@ func play(a int, g *core.Game) {
 		fmt.Printf(">>> press ENTER to go on...\n")
 		reader.ReadString('\n')
 
-		core.NetPrintGame(g, 0)
+		core.PrettyPrintGame(g, 0)
 	case 3:
 		break
 	}
