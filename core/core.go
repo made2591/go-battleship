@@ -15,6 +15,17 @@ import (
 // Constants for default and game config
 const (
 
+	PROTOCOL = "http"
+	HOST_NAME = "localhost"
+	HOST_PORT = "8080"
+
+	START_REQUEST = "/start"
+	SHOT_REQUEST  = "/shot"
+	EXIT_REQUEST  = "/exit"
+
+	SIMULATION_THINKING_TIME = 2000 //milliseconds
+	PRINT_HIDDEN_MODE   = 1
+
 	GUN_SHOT_COST 		= 10
 	FIRE_SHOT_COST		= 100
 	NUCLEAR_SHOT_COST	= 1000
@@ -150,7 +161,7 @@ func PrepareShip(sd int, gd int) (s Ship) {
 		x := util.Random(1, gd)
 		y := util.Random(1, gd)
 		// add unique Coordinate
-		p[0] = Coordinates{Abscissa: x, Ordinate: y}
+		p[0] = Coordinates{Abscissa: x, Ordinate: y, Status: STATUS_SHIP_OK}
 
 	} else {
 
@@ -164,10 +175,10 @@ func PrepareShip(sd int, gd int) (s Ship) {
 
 			// offset on x
 			if h {
-				p[t] = Coordinates{Abscissa: x + t, Ordinate: y}
+				p[t] = Coordinates{Abscissa: x + t, Ordinate: y, Status: STATUS_SHIP_OK}
 			// offset on y
 			} else {
-				p[t] = Coordinates{Abscissa: y, Ordinate: x + t}
+				p[t] = Coordinates{Abscissa: y, Ordinate: x + t, Status: STATUS_SHIP_OK}
 			}
 		}
 
@@ -183,8 +194,11 @@ func PrepareShip(sd int, gd int) (s Ship) {
 // ########################################### GAME LOGIC METHODS ############################################
 // ###########################################################################################################
 
-// SwitchPointOfView switch point of view
-func Decode(r *http.Request) (g *Game) {
+// GameDecoder decode game in HTTP request
+func GameDecoder(r *http.Request) (g Game) {
+
+	// create Game
+	g = Game{}
 
 	// decode game
 	d := json.NewDecoder(r.Body)
@@ -336,7 +350,7 @@ func StatusToString(s int) (string) {
 // SeaToString print Player Sea
 //	[p:*Player]	Player
 //	[return]	string
-func SeaToString(p *Player) (ss string) {
+func SeaToString(p *Player, h int) (ss string) {
 
 	// create first separation line
 	ss = GAME_GRID_BORDER
@@ -357,27 +371,47 @@ func SeaToString(p *Player) (ss string) {
 			// check ShipPosition in Sea
 			rp, si, ci := CheckShipPosition(&Coordinates{Abscissa: r+1, Ordinate: c+1}, &p.Sea)
 
-			// if there's a Sea in position
-			if rp {
-
-				// add correct status representation
-				ss += " "+StatusToString(p.Sea.Ships[si].Positions[ci].Status)+" "+GAME_GRID_BORDER
-
-			} else {
+			if h == PRINT_HIDDEN_MODE {
 
 				// check SufferedMoves in Sea
-				pp, pi := CheckSufferedMoves(&Coordinates{Abscissa: r+1, Ordinate: c+1}, p)
+				pp, pi := CheckSufferedMoves(&Coordinates{Abscissa: r + 1, Ordinate: c + 1}, p)
 
 				// if opponent shot in the cell
 				if pp {
 
 					// add correct status representation
-					ss += " "+StatusToString(p.Suffered[pi].Status)+" "+GAME_GRID_BORDER
+					ss += " " + StatusToString(p.Suffered[pi].Status) + " " + GAME_GRID_BORDER
 
 				} else {
 
-					ss += " " + STR_SEA_OK + " "+GAME_GRID_BORDER
+					ss += " " + STR_SEA_OK + " " + GAME_GRID_BORDER
 
+				}
+
+			} else {
+
+				// if there's a Sea in position
+				if rp {
+
+					// add correct status representation
+					ss += " " + StatusToString(p.Sea.Ships[si].Positions[ci].Status) + " " + GAME_GRID_BORDER
+
+				} else {
+
+					// check SufferedMoves in Sea
+					pp, pi := CheckSufferedMoves(&Coordinates{Abscissa: r + 1, Ordinate: c + 1}, p)
+
+					// if opponent shot in the cell
+					if pp {
+
+						// add correct status representation
+						ss += " " + StatusToString(p.Suffered[pi].Status) + " " + GAME_GRID_BORDER
+
+					} else {
+
+						ss += " " + STR_SEA_OK + " " + GAME_GRID_BORDER
+
+					}
 				}
 			}
 		}
@@ -421,11 +455,13 @@ func ShotHistory(g *Game) (s string) {
 	sp := len(g.FirstPlayer.Suffered) > len(g.SecondPlayer.Suffered)
 
 	for i := 0; i < sm; i++ {
-		if sp {
+		if sp && g.SecondPlayer.Suffered != nil && i < len(g.SecondPlayer.Suffered) {
 			s += ">>> shot out coordinates "+PrettyPrintCoordinatesInfo(&g.SecondPlayer.Suffered[i])+"\n"
 		}
-		s += ">>> shot in  coordinates "+PrettyPrintCoordinatesInfo(&g.FirstPlayer.Suffered[i])+"\n"
-		if !sp {
+		if g.FirstPlayer.Suffered != nil && i < len(g.FirstPlayer.Suffered) {
+			s += ">>> shot in  coordinates " + PrettyPrintCoordinatesInfo(&g.FirstPlayer.Suffered[i]) + "\n"
+		}
+		if !sp && g.SecondPlayer.Suffered != nil && i < len(g.SecondPlayer.Suffered) {
 			s += ">>> shot out coordinates " + PrettyPrintCoordinatesInfo(&g.SecondPlayer.Suffered[i]) + "\n"
 		}
 	}
@@ -455,9 +491,9 @@ func PrettyPrintGame(g *Game) (gs string) {
 	util.CleanScreen()
 
 	gs += ">>> "+g.FirstPlayer.Name+"'s sea\n"
-	gs += SeaToString(&g.FirstPlayer)
+	gs += SeaToString(&g.FirstPlayer, -1)
 	gs += ">>> "+g.SecondPlayer.Name+"'s sea\n"
-	gs += SeaToString(&g.SecondPlayer)
+	gs += SeaToString(&g.SecondPlayer, PRINT_HIDDEN_MODE)
 	gs += "\n"+ShotHistory(g)
 
 	return
@@ -493,9 +529,9 @@ func main() {
 	s := PrepareSea(10, 5)
 	fmt.Println(PrettyPrintSeaInfo(&s))
 	g := PrepareGame(10, 0, "Matteo", 5, 9999, "HAL", 5, 9999)
-	fmt.Println(SeaToString(&g.FirstPlayer))
-	fmt.Println(SeaToString(&g.SecondPlayer))
+	fmt.Println(SeaToString(&g.FirstPlayer, -1))
+	fmt.Println(SeaToString(&g.SecondPlayer, -1))
 	GunShot(&g.FirstPlayer, &g.SecondPlayer, &g.SecondPlayer.Sea.Ships[0].Positions[0])
-	fmt.Println(SeaToString(&g.SecondPlayer))
+	fmt.Println(SeaToString(&g.SecondPlayer, -1))
 
 }

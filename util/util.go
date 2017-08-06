@@ -37,7 +37,7 @@ func Search(a int, b []int) bool {
 func ConsolePause(m string) {
 
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Printf(m+"\n")
+	fmt.Printf("%s\n", m)
 	reader.ReadString('\n')
 
 }
