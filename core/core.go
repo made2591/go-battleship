@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	util "github.com/made2591/go-battleship/util"
 	//	"math/rand"
-	//	"time"
 )
 
 // Constants for default and game config
@@ -95,8 +94,8 @@ func PrepareGame(d int, m int, nf string, sf int, gf int, ns string, ss int, gs 
 		sp = Player{Name: ns, GunShot: gs, Sea: PrepareSea(d, ss)}
 	}
 
-	// create Game
 	g = Game{FirstPlayer: fp, SecondPlayer: sp}
+
 	return
 
 }
@@ -283,7 +282,7 @@ func GunShot(f *Player, t *Player, p *Coordinates) {
 // GunShot from p Player to t Player in p Coordinates
 func ServerGunShot(w http.ResponseWriter, r *http.Request) {
 
-	// reader := bufio.NewReader(os.Stdin)
+	reader := bufio.NewReader(os.Stdin)
 
 	d := json.NewDecoder(r.Body)
 	g := Game{}
@@ -308,7 +307,7 @@ func ServerGunShot(w http.ResponseWriter, r *http.Request) {
 
 	s := util.Random(0, len(g.SecondPlayer.Sea.Ships)-1)
 	p := util.Random(0, len(g.SecondPlayer.Sea.Ships[s].Positions)-1)
-	g.GunShot(&g.SecondPlayer, &g.FirstPlayer, g.SecondPlayer.Sea.Ships[s].Positions[p])
+	GunShot(&g.SecondPlayer, &g.FirstPlayer, &g.SecondPlayer.Sea.Ships[s].Positions[p])
 
 	fmt.Printf(">>> gun shot coordinates [%d, %d]\n",
 		g.SecondPlayer.Sea.Ships[s].Positions[p].Abscissa,
@@ -388,7 +387,7 @@ func SeaToString(p *Player) (ss string) {
 			} else {
 
 				// check SufferedMoves in Sea
-				pp, pi := CheckSufferedMoves(&Coordinates{Abscissa: r+1, Ordinate: c+1}, &p)
+				pp, pi := CheckSufferedMoves(&Coordinates{Abscissa: r+1, Ordinate: c+1}, p)
 
 				// if opponent shot in the cell
 				if pp {
@@ -424,6 +423,32 @@ func PrettyPrintCoordinatesInfo(p *Coordinates) (ps string) {
 
 	ps = "(" + strconv.Itoa(p.Abscissa) + "; " + strconv.Itoa(p.Ordinate) + ")"
 	return
+
+}
+
+func PrintShot(g *Game, n int) {
+
+	if n == 0 {
+		for _, p := range g.SecondPlayer.Moves {
+			fmt.Printf(">>> shot made     in coordinates [%d, %d]\n",
+				p.Abscissa,
+				p.Ordinate)
+		}
+	}
+
+	for _, p := range g.SecondPlayer.Suffered {
+		fmt.Printf(">>> shot received in coordinates [%d, %d]\n",
+			p.Abscissa,
+			p.Ordinate)
+	}
+
+	if n == 1 {
+		for _, p := range g.SecondPlayer.Moves {
+			fmt.Printf(">>> shot made     in coordinates [%d, %d]\n",
+				p.Abscissa,
+				p.Ordinate)
+		}
+	}
 
 }
 

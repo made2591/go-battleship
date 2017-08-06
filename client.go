@@ -4,18 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	core "github.com/made2591/go-battleship/core"
-	//util "github.com/made2591/go-battleship/util"
+	util "github.com/made2591/go-battleship/util"
 	"bufio"
 	"bytes"
 	"net/http"
 	"os"
-	"strconv"
+	//"strconv"
 	//"time"
-)
-
-const (
-	HOST_NAME = "localhost"
-	HOST_PORT = "8080"
 )
 
 func start(g *core.Game) {
@@ -78,50 +73,56 @@ func play(a int, g *core.Game) {
 	case 1:
 		start(g)
 	case 2:
-		fmt.Printf("x: ")
-		x, _ := reader.ReadString('\n')
-		ix, _ := strconv.Atoi(x)
+		var x, y int
 
-		fmt.Printf("y: ")
-		y, _ := reader.ReadString('\n')
-		iy, _ := strconv.Atoi(y)
+		for {
+			fmt.Printf("x: ")
+			_, e1 := fmt.Scanf("%d", &x)
+			fmt.Printf("y: ")
+			_, e2 := fmt.Scanf("%d", &y)
+			if e1 == nil || e2 == nil {
+				break
+			}
+		}
 
-		g.GunShot(&g.FirstPlayer, &g.SecondPlayer, core.Coordinates{Abscissa: int(ix), Ordinate: int(iy)})
+		core.GunShot(&g.FirstPlayer, &g.SecondPlayer, &core.Coordinates{Abscissa: x, Ordinate: y})
 
-		bbb, _ := json.Marshal(g)
-		fmt.Println(string(bbb))
+//		bbb, _ := json.Marshal(g)
+//		fmt.Println(string(bbb))
 
-		fmt.Printf(">>> press ENTER to go on...\n")
-		reader.ReadString('\n')
+//		fmt.Printf(">>> press ENTER to go on...\n")
+//		reader.ReadString('\n')
 
 		core.PrettyPrintGame(g, 0)
 
-		fmt.Printf(">>> press ENTER to go on...\n")
+		fmt.Printf(">>> press ENTER to shot...\n")
 		reader.ReadString('\n')
 
 		js, _ := json.Marshal(g)
 		res, _ := http.Post("http://"+HOST_NAME+":"+HOST_PORT+"/gunshot", "application/json", bytes.NewBuffer(js))
 		json.NewDecoder(res.Body).Decode(g)
 
-		fmt.Printf(">>> shot received in coordinates [%d, %d]\n",
-			g.FirstPlayer.Suffered[len(g.FirstPlayer.Suffered)-1].Abscissa,
-			g.FirstPlayer.Suffered[len(g.FirstPlayer.Suffered)-1].Ordinate)
-		fmt.Printf(">>> press ENTER to go on...\n")
+//		fmt.Printf(">>> shot received in coordinates [%d, %d]\n",
+//			g.FirstPlayer.Suffered[len(g.FirstPlayer.Suffered)-1].Abscissa,
+//			g.FirstPlayer.Suffered[len(g.FirstPlayer.Suffered)-1].Ordinate)
+//		fmt.Printf(">>> press ENTER to go on...\n")
 		reader.ReadString('\n')
 
 		core.PrettyPrintGame(g, 0)
 	case 3:
-		break
+		fmt.Println(">>> exit game...")
+		http.Get("http://" + HOST_NAME + ":" + HOST_PORT + "/exit")
+		util.CleanScreen()
+		os.Exit(1)
 	}
 
 }
 
 func main() {
-
+	util.CleanScreen()
 	g := core.Game{}
 	for {
 		a := menu()
 		play(a, &g)
 	}
-
 }
