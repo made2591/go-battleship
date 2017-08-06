@@ -3,6 +3,7 @@ package main
 import (
 
 	"fmt"
+	"time"
 	"net/http"
 	"encoding/json"
 
@@ -13,6 +14,7 @@ import (
 
 const (
 
+	PROTOCOLL = "http"
 	HOST_NAME = "localhost"
 	HOST_PORT = "8080"
 
@@ -20,57 +22,83 @@ const (
 	SHOT_REQUEST  = "/shot"
 	EXIT_REQUEST  = "/exit"
 
+	SIMULATION_THINKING_TIME = 2000 //milliseconds
+
 )
 
-func startRequest(w http.ResponseWriter, r *http.Request) {
+// ###########################################################################################################
+// ############################################# SERVER LOGIC ################################################
+// ###########################################################################################################
+
+func SleepRequest() {
+	time.Sleep(SIMULATION_THINKING_TIME * time.Millisecond)
+}
+
+func StartRequest(w http.ResponseWriter, r *http.Request) {
+
+	// create request
 	fmt.Println(">>> new game generation...")
-	g := core.PrepareGame(10, 0, "Matteo", 5, 9999, "HAL", 5, 9999)
-	core.PrettyPrintGame(&g, 1)
+
+	// init game
+	g := core.PrepareGame(core.PC_GRID, core.PC_MODE, "Matteo", core.PC_SHIPS, core.PC_SHOTS, "", -1, -1)
+
+	// pretty print game
+	core.PrettyPrintGame(&g)
+
+	// IMPORTANT STEP
+	core.SwitchPointOfView(&g)
+
+	// send back to client
 	json.NewEncoder(w).Encode(g)
+
 }
 
 // ServerGunShot from p Player to t Player in p Coordinates
-func serverShotRequest(w http.ResponseWriter, r *http.Request) {
+func ServerShotRequest(w http.ResponseWriter, r *http.Request) {
 
-	// decode game
-	d := json.NewDecoder(r.Body)
-	g := core.Game{}
-	err := d.Decode(&g)
-	if err != nil {
-		panic(err)
-	}
-	defer r.Body.Close()
+	// decode received game AND SWITCH IT
+	g := core.Decode(r)
+
+	// IMPORTANT STEP
+	core.SwitchPointOfView(g)
 
 	// debug print of json
-	fmt.Println(core.DebugGame(&g))
+	// fmt.Println(core.DebugGame(g))
 
-
+	// debug pause
 	util.ConsolePause(util.PAUSE_MEX)
 
+	// create Random SHOT
+	// TODO: IMPLEMENT STRATEGY
 	s := util.Random(0, len(g.SecondPlayer.Sea.Ships)-1)
 	p := util.Random(0, len(g.SecondPlayer.Sea.Ships[s].Positions)-1)
-	GunShot(&g.SecondPlayer, &g.FirstPlayer, &g.SecondPlayer.Sea.Ships[s].Positions[p])
+	core.GunShot(&g.SecondPlayer, &g.FirstPlayer, &g.SecondPlayer.Sea.Ships[s].Positions[p])
 
-	fmt.Printf(">>> gun shot coordinates [%d, %d]\n",
-		g.SecondPlayer.Sea.Ships[s].Positions[p].Abscissa,
-		g.SecondPlayer.Sea.Ships[s].Positions[p].Ordinate)
-	fmt.Printf(">>> press ENTER to go on...\n")
-	reader.ReadString('\n')
+	// debug pause
+	util.ConsolePause(util.PAUSE_MEX)
 
-	PrettyPrintGame(&g, 1)
+	// print game
+	fmt.Printf(core.PrettyPrintGame(g))
 
-	fmt.Printf(">>> press ENTER to go on...\n")
-	reader.ReadString('\n')
+	// IMPORTANT STEP
+	core.SwitchPointOfView(g)
 
-	PrettyPrintGame(&g, 1)
-
+	// send back to client
 	json.NewEncoder(w).Encode(g)
+
 }
 
 func main() {
+
+	// clean screen
 	util.CleanScreen()
-	http.HandleFunc("/start", startRequest)
-	http.HandleFunc("/shot", serverShotRequest)
-	http.HandleFunc("/exit", util.Exit)
-	http.ListenAndServe(":8080", nil)
+
+	// handle routes
+	http.HandleFunc(START_REQUEST, StartRequest)
+	http.HandleFunc(SHOT_REQUEST, ServerShotRequest)
+	http.HandleFunc(EXIT_REQUEST, util.Exit)
+
+	// start serving
+	http.ListenAndServe(PROTOCOLL+"://"+HOST_NAME+":"+HOST_PORT, nil)
+
 }

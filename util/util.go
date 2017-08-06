@@ -10,10 +10,13 @@ import (
 )
 
 const (
+
 	ROW_NUMBER = 1024
 	COL_NUMBER = 1024
+
 	BLANK_SPAC = " "
 	PAUSE_MEX  = ">>> press ENTER to go on..."
+
 )
 
 func Random(min, max int) int {

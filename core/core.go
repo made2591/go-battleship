@@ -1,15 +1,15 @@
 package core
 
 import (
-	"os"
+
 	"fmt"
-	"bufio"
-	"strconv"
-	"net/http"
-	"encoding/json"
-	util "github.com/made2591/go-battleship/util"
-	//	"math/rand"
 	"math"
+	"strconv"
+	"encoding/json"
+
+	util "github.com/made2591/go-battleship/util"
+
+	"net/http"
 )
 
 // Constants for default and game config
@@ -17,11 +17,13 @@ const (
 
 	GUN_SHOT_COST 		= 10
 	FIRE_SHOT_COST		= 100
+	NUCLEAR_SHOT_COST	= 1000
 
 	PC_NAME  = "HAL"
 	PC_SHOTS = 9999
 	PC_SHIPS = 5
 	PC_GRID  = 10
+	PC_MODE  = 0
 
 	GAME_GRID_BORDER   = "|"
 	STR_SHIP_OK        = "00"
@@ -88,7 +90,7 @@ func PrepareGame(d int, m int, nf string, sf int, gf int, ns string, ss int, gs 
 
 	// create First Player
 	sp := Player{}
-	if m == 0 {
+	if m == PC_MODE {
 		sp = Player{Name: PC_NAME, GunShot: PC_SHOTS, Sea: PrepareSea(PC_GRID, PC_SHIPS)}
 	} else {
 		sp = Player{Name: ns, GunShot: gs, Sea: PrepareSea(d, ss)}
@@ -180,6 +182,21 @@ func PrepareShip(sd int, gd int) (s Ship) {
 // ###########################################################################################################
 // ########################################### GAME LOGIC METHODS ############################################
 // ###########################################################################################################
+
+// SwitchPointOfView switch point of view
+func Decode(r *http.Request) (g *Game) {
+
+	// decode game
+	d := json.NewDecoder(r.Body)
+	err := d.Decode(&g)
+	if err != nil {
+		panic(err)
+	}
+	defer r.Body.Close()
+
+	return
+
+}
 
 // SwitchPointOfView switch point of view
 //	[g:*Game]	Game pointer
@@ -432,30 +449,16 @@ func PrettyPrintShipInfo(s *Ship) (ss string) {
 
 // PrettyPrintGame from p Player to t Player in p Coordinates
 //	[g:*Game]			Game pointer		[m:int]	game mode 0 1:PC 1:1
-func PrettyPrintGame(g *Game, m int) (gs string) {
+func PrettyPrintGame(g *Game) (gs string) {
 
 	// clean tty screen
 	util.CleanScreen()
 
-	// print client player
-	if m == 0 {
-
-		gs += ">>> "+g.FirstPlayer.Name+"'s sea\n"
-		gs += SeaToString(&g.FirstPlayer)
-		gs += ">>> "+g.SecondPlayer.Name+"'s sea\n"
-		gs += SeaToString(&g.SecondPlayer)
-
-	}
-
-	// print PC player
-	if m == 1 {
-
-		gs += ">>> "+g.SecondPlayer.Name+"'s sea\n"
-		gs += SeaToString(&g.SecondPlayer)
-		gs += ">>> "+g.FirstPlayer.Name+"'s sea\n"
-		gs += SeaToString(&g.FirstPlayer)
-
-	}
+	gs += ">>> "+g.FirstPlayer.Name+"'s sea\n"
+	gs += SeaToString(&g.FirstPlayer)
+	gs += ">>> "+g.SecondPlayer.Name+"'s sea\n"
+	gs += SeaToString(&g.SecondPlayer)
+	gs += "\n"+ShotHistory(g)
 
 	return
 
