@@ -1,17 +1,19 @@
 package util
 
 import (
-	"math/rand"
-	"time"
+	"os"
 	"fmt"
+	"time"
+	"bufio"
 	"net/http"
-	"os"	
+	"math/rand"
 )
 
 const (
 	ROW_NUMBER = 1024
 	COL_NUMBER = 1024
 	BLANK_SPAC = " "
+	PAUSE_MEX  = ">>> press ENTER to go on..."
 )
 
 func Random(min, max int) int {
@@ -27,6 +29,14 @@ func Search(a int, b []int) bool {
 		}
 	}
 	return false
+}
+
+func ConsolePause(m string) {
+
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Printf(m+"\n")
+	reader.ReadString('\n')
+
 }
 
 func CleanScreen() {

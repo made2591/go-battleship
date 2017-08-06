@@ -1,22 +1,23 @@
 package main
 
 import (
-	"encoding/json"
+
+	"os"
 	"fmt"
-	core "github.com/made2591/go-battleship/core"
-	util "github.com/made2591/go-battleship/util"
 	"bufio"
 	"bytes"
 	"net/http"
-	"os"
-	//"strconv"
-	//"time"
+	"encoding/json"
+
+	core "github.com/made2591/go-battleship/core"
+	util "github.com/made2591/go-battleship/util"
+
 )
 
 func start(g *core.Game) {
 
 	fmt.Println(">>> request new game...")
-	res, _ := http.Get("http://" + HOST_NAME + ":" + HOST_PORT + "/start")
+	res, _ := http.Get("http://" + HOST_NAME + ":" + HOST_PORT + START_REQUEST)
 	json.NewDecoder(res.Body).Decode(g)
 	core.PrettyPrintGame(g, 0)
 
@@ -99,7 +100,7 @@ func play(a int, g *core.Game) {
 		reader.ReadString('\n')
 
 		js, _ := json.Marshal(g)
-		res, _ := http.Post("http://"+HOST_NAME+":"+HOST_PORT+"/gunshot", "application/json", bytes.NewBuffer(js))
+		res, _ := http.Post("http://"+HOST_NAME+":"+HOST_PORT+SHOT_REQUEST, "application/json", bytes.NewBuffer(js))
 		json.NewDecoder(res.Body).Decode(g)
 
 //		fmt.Printf(">>> shot received in coordinates [%d, %d]\n",
@@ -111,7 +112,7 @@ func play(a int, g *core.Game) {
 		core.PrettyPrintGame(g, 0)
 	case 3:
 		fmt.Println(">>> exit game...")
-		http.Get("http://" + HOST_NAME + ":" + HOST_PORT + "/exit")
+		http.Get("http://" + HOST_NAME + ":" + HOST_PORT + EXIT_REQUEST)
 		util.CleanScreen()
 		os.Exit(1)
 	}

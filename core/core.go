@@ -9,13 +9,14 @@ import (
 	"encoding/json"
 	util "github.com/made2591/go-battleship/util"
 	//	"math/rand"
+	"math"
 )
 
 // Constants for default and game config
 const (
 
 	GUN_SHOT_COST 		= 10
-	FIRE_SHOT_COST		= 10
+	FIRE_SHOT_COST		= 100
 
 	PC_NAME  = "HAL"
 	PC_SHOTS = 9999
@@ -53,7 +54,6 @@ type Player struct {
 	Name     string        `json:"Name"`
 	Sea      Sea           `json:"Sea"`
 	GunShot  int           `json:"GunShot"`
-	Moves    []Coordinates `json:"Moves"`
 	Suffered []Coordinates `json:"Suffered"`
 }
 
@@ -181,6 +181,16 @@ func PrepareShip(sd int, gd int) (s Ship) {
 // ########################################### GAME LOGIC METHODS ############################################
 // ###########################################################################################################
 
+// SwitchPointOfView switch point of view
+//	[g:*Game]	Game pointer
+func SwitchPointOfView(g *Game) {
+
+	t := g.FirstPlayer
+	g.FirstPlayer = g.SecondPlayer
+	g.SecondPlayer = t
+
+}
+
 // CheckCollisions check if a collides with at least one of b ships
 //	[a:*Ship]	ship pointer		[b:array of Ships]		array of Ships
 func CheckCollisions(a *Ship, b []Ship) bool {
@@ -272,57 +282,9 @@ func GunShot(f *Player, t *Player, p *Coordinates) {
 		np = Coordinates{Abscissa: p.Abscissa, Ordinate: p.Ordinate, Status: STATUS_SEA_STRICKEN}
 	}
 
-	// add to moves
-	f.Moves = append(f.Moves, np)
 	// add to suffered
 	t.Suffered = append(t.Suffered, np)
 
-}
-
-// GunShot from p Player to t Player in p Coordinates
-func ServerGunShot(w http.ResponseWriter, r *http.Request) {
-
-	reader := bufio.NewReader(os.Stdin)
-
-	d := json.NewDecoder(r.Body)
-	g := Game{}
-
-	err := d.Decode(&g)
-	if err != nil {
-		panic(err)
-	}
-	defer r.Body.Close()
-
-	bbb, _ := json.Marshal(g)
-	fmt.Println(string(bbb))
-
-	fmt.Printf(">>> press ENTER to go on...\n")
-	reader.ReadString('\n')
-
-	fmt.Printf(">>> shot received in coordinates [%d, %d]\n",
-		g.SecondPlayer.Suffered[len(g.SecondPlayer.Suffered)-1].Abscissa,
-		g.SecondPlayer.Suffered[len(g.SecondPlayer.Suffered)-1].Abscissa)
-	fmt.Printf(">>> press ENTER to go on...\n")
-	reader.ReadString('\n')
-
-	s := util.Random(0, len(g.SecondPlayer.Sea.Ships)-1)
-	p := util.Random(0, len(g.SecondPlayer.Sea.Ships[s].Positions)-1)
-	GunShot(&g.SecondPlayer, &g.FirstPlayer, &g.SecondPlayer.Sea.Ships[s].Positions[p])
-
-	fmt.Printf(">>> gun shot coordinates [%d, %d]\n",
-		g.SecondPlayer.Sea.Ships[s].Positions[p].Abscissa,
-		g.SecondPlayer.Sea.Ships[s].Positions[p].Ordinate)
-	fmt.Printf(">>> press ENTER to go on...\n")
-	reader.ReadString('\n')
-
-	PrettyPrintGame(&g, 1)
-
-	fmt.Printf(">>> press ENTER to go on...\n")
-	reader.ReadString('\n')
-
-	PrettyPrintGame(&g, 1)
-
-	json.NewEncoder(w).Encode(g)
 }
 
 // ###########################################################################################################
@@ -421,34 +383,36 @@ func SeaToString(p *Player) (ss string) {
 //	[return]	string
 func PrettyPrintCoordinatesInfo(p *Coordinates) (ps string) {
 
-	ps = "(" + strconv.Itoa(p.Abscissa) + "; " + strconv.Itoa(p.Ordinate) + ")"
+	ps = "[" + strconv.Itoa(p.Abscissa) + "; " + strconv.Itoa(p.Ordinate) + "]"
 	return
 
 }
 
-func PrintShot(g *Game, n int) {
+func LastShotInToString(g *Game) (s string) {
+	s = ">>> shot out in coordinates "+PrettyPrintCoordinatesInfo(&g.FirstPlayer.Suffered[len(g.FirstPlayer.Suffered)-1])+"\n"
+	return
+}
 
-	if n == 0 {
-		for _, p := range g.SecondPlayer.Moves {
-			fmt.Printf(">>> shot made     in coordinates [%d, %d]\n",
-				p.Abscissa,
-				p.Ordinate)
+func LastShotOutToString(g *Game) (s string) {
+	s = ">>> shot in  in coordinates "+PrettyPrintCoordinatesInfo(&g.SecondPlayer.Suffered[len(g.SecondPlayer.Suffered)-1])+"\n"
+	return
+}
+
+func ShotHistory(g *Game) (s string) {
+
+	sm := int(math.Max(float64(len(g.FirstPlayer.Suffered)), float64(len(g.SecondPlayer.Suffered))))
+	sp := len(g.FirstPlayer.Suffered) > len(g.SecondPlayer.Suffered)
+
+	for i := 0; i < sm; i++ {
+		if sp {
+			s += ">>> shot out coordinates "+PrettyPrintCoordinatesInfo(&g.SecondPlayer.Suffered[i])+"\n"
+		}
+		s += ">>> shot in  coordinates "+PrettyPrintCoordinatesInfo(&g.FirstPlayer.Suffered[i])+"\n"
+		if !sp {
+			s += ">>> shot out coordinates " + PrettyPrintCoordinatesInfo(&g.SecondPlayer.Suffered[i]) + "\n"
 		}
 	}
-
-	for _, p := range g.SecondPlayer.Suffered {
-		fmt.Printf(">>> shot received in coordinates [%d, %d]\n",
-			p.Abscissa,
-			p.Ordinate)
-	}
-
-	if n == 1 {
-		for _, p := range g.SecondPlayer.Moves {
-			fmt.Printf(">>> shot made     in coordinates [%d, %d]\n",
-				p.Abscissa,
-				p.Ordinate)
-		}
-	}
+	return
 
 }
 
@@ -512,6 +476,11 @@ func PrettyPrintSeaInfo(s *Sea) (ss string) {
 
 }
 
+func DebugGame(g *Game) string {
+	jg, _ := json.Marshal(g)
+	return string(jg)
+}
+
 // ###########################################################################################################
 // ######################################### TEST METHODS STRINGIFIER ########################################
 // ###########################################################################################################
@@ -523,7 +492,6 @@ func main() {
 	g := PrepareGame(10, 0, "Matteo", 5, 9999, "HAL", 5, 9999)
 	fmt.Println(SeaToString(&g.FirstPlayer))
 	fmt.Println(SeaToString(&g.SecondPlayer))
-	//fmt.Println(g.SecondPlayer.Sea.Ships)
 	GunShot(&g.FirstPlayer, &g.SecondPlayer, &g.SecondPlayer.Sea.Ships[0].Positions[0])
 	fmt.Println(SeaToString(&g.SecondPlayer))
 
