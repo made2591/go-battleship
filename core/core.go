@@ -1,34 +1,46 @@
 package core
 
 import (
+	"os"
 	"fmt"
-	//	"math/rand"
 	"bufio"
+	"strconv"
+	"net/http"
 	"encoding/json"
 	util "github.com/made2591/go-battleship/util"
-	"net/http"
-	"os"
-	"strconv"
+	//	"math/rand"
 	//	"time"
 )
 
+// Constants for default and game config
 const (
+	GAME_GRID_BORDER    = "|"
+
 	PC_NAME  = "HAL"
 	PC_SHOTS = 9999
+	PC_SHIPS = 5
+	PC_GRID  = 10
 
-	STATUS_OK_BASE      = "00"
-	STATUS_DESTROY_BASE = "XX"
-	STATUS_FIRE_BASE    = "/\\"
-	SEA_BASE            = "  "
-	SEA_SHOT_BASE       = "~~"
+	STR_STATUS_OK       = "00"
+	STR_STATUS_DESTROY  = "XX"
+	STR_STATUS_STRICKEN = "/\\"
+	STR_STATUS_FIRE		= "§§"
 
-	STATUS_OK      = iota // 0
-	STATUS_DESTROY        // 1
-	STATUS_FIRE           // 2
-	SEA                   // 3
-	SEA_SHOT              // 4
+	STR_SEA_CELL     	= "  "
+	STR_SEA_STRICKEN 	= "~~"
+
+	STATUS_SHIP_OK 		= iota
+	STATUS_SHIP_STRICKEN
+	STATUS_SHIP_BURNING
+	STATUS_SHIP_DESTROYED
+	STATUS_SEA_OK
+	STATUS_SEA_STRICKEN
 
 )
+
+// ###########################################################################################################
+// ################################################### GAME ##################################################
+// ###########################################################################################################
 
 type Game struct {
 	FirstPlayer  Player `json:"FirstPlayer"`
@@ -56,96 +68,123 @@ type Ship struct {
 type Coordinates struct {
 	Abscissa int `json:"Abscissa"`
 	Ordinate int `json:"Ordinate"`
-	// 0 ok 1 hit
 	Status int `json:"Status"`
 }
 
-func PrepareGame(d int, m int, na string, sa int, ga int, nb string, sb int, gb int) (g Game) {
+// ###########################################################################################################
+// ############################################### CONSTRUCTORS ##############################################
+// ###########################################################################################################
 
-	pf := Player{}
-	ps := Player{}
+// Game init
+//	[d:int]		grid dimension		[m:int]	game mode 0 1:PC 1:1
+//	[nf:int]	first player name	[sf:int]	first player number of ship	[gf:int]	first player gun shots
+//	[ns:string]	first player name	[ss:int]	first player number of ship	[gs:int]	first player gun shots
+func PrepareGame(d int, m int, nf string, sf int, gf int, ns string, ss int, gs int) (g Game) {
 
+	// create First Player
+	fp := Player{Name: nf, GunShot: gf, Sea: PrepareSea(d, sf)}
+
+	// create First Player
+	sp := Player{}
 	if m == 0 {
-		pf = Player{Name: na, GunShot: ga, Sea: PrepareSea(d, sa)}
-		ps = Player{Name: PC_NAME, GunShot: PC_SHOTS, Sea: PrepareSea(d, sb)}
+		sp = Player{Name: PC_NAME, GunShot: PC_SHOTS, Sea: PrepareSea(PC_GRID, PC_SHIPS)}
+	} else {
+		sp = Player{Name: ns, GunShot: gs, Sea: PrepareSea(d, ss)}
 	}
-	g = Game{FirstPlayer: pf, SecondPlayer: ps}
+
+	// create Game
+	g = Game{FirstPlayer: fp, SecondPlayer: sp}
 	return
 
 }
 
-// PrepareSea return a Sea struct given Dimension: n
-func PreparePlayer(n string, g int, s Sea) (p Player) {
+// Sea init
+//	[d:int]		grid dimension		[s:int]	number of ship
+// TODO CREATE MORE EFFICIENT ALGORITHM FOR RANDOM GEN OF SHIPS
+func PrepareSea(d int, n int) (s Sea) {
 
-	p = Player{Name: n, GunShot: g, Sea: s, Moves: []Coordinates{}, Suffered: []Coordinates{}}
+	// prepare array of Ship
+	ss := make([]Ship, n)
 
-	return
+	// create n Ship with incremental dimension
+	for i := 0; i < n; i++ {
 
-}
+		// create Ship
+		st := PrepareShip(i+1, d)
 
-// PrepareSea return a Sea struct given Dimension: n
-func PrepareSea(n int, s int) (sea Sea) {
-
-	ss := make([]Ship, s)
-
-	for i := 0; i < s; i++ {
-
-		st := PrepareShip(i+1, n)
-		if !CheckCollisions(st, ss) {
-			ss[i] = PrepareShip(i+1, n)
+		// if it doesn't collide with other ships
+		if !CheckCollisions(&st, ss) {
+			// add to Sea
+			ss[i] = PrepareShip(i+1, d)
 		} else {
+			// retry
 			i--
 		}
 
 	}
 
-	sea = Sea{Dimension: n, Ships: ss}
-
+	// create Sea
+	s = Sea{Dimension: d, Ships: ss}
 	return
 
 }
 
-func PrepareShip(n int, m int) (s Ship) {
+// Ship init
+//	[sd:int]	ship dimension		[gd:int]		grid dimension
+func PrepareShip(sd int, gd int) (s Ship) {
 
+	// choose if horizontal
 	h := util.Random(0, 1) == 1
 
-	p := make([]Coordinates, n)
+	// create Ship coordinates
+	p := make([]Coordinates, sd)
 
-	if n == 1 {
+	// if Ship dimension is 1
+	if sd == 1 {
 
-		x := util.Random(1, m)
-		y := util.Random(1, m)
+		// create Random coordinate
+		x := util.Random(1, gd)
+		y := util.Random(1, gd)
+		// add unique Coordinate
 		p[0] = Coordinates{Abscissa: x, Ordinate: y}
 
 	} else {
 
-		x := util.Random(1, m-n)
-		y := util.Random(1, m)
+		// create x coordinate no more than grid dimension
+		x := util.Random(1, gd-sd)
+		// create y coordinate no more than grid dimension
+		y := util.Random(1, gd)
 
-		for t := 0; t < n; t++ {
+		// create Coordinates
+		for t := 0; t < sd; t++ {
 
+			// offset on x
 			if h {
-
 				p[t] = Coordinates{Abscissa: x + t, Ordinate: y}
-
+			// offset on y
 			} else {
-
 				p[t] = Coordinates{Abscissa: y, Ordinate: x + t}
-
 			}
 		}
 
 	}
 
-	s = Ship{Dimension: n, Positions: p}
+	// create Ship
+	s = Ship{Dimension: sd, Positions: p}
 	return
 
 }
 
-func CheckCollisions(a Ship, b []Ship) bool {
+// ###########################################################################################################
+// ########################################### GAME LOGIC METHODS ############################################
+// ###########################################################################################################
+
+// CheckCollisions check if a collides with at least one of b ships
+//	[a:*Ship]	ship pointer		[b:array of Ships]		array of Ships
+func CheckCollisions(a *Ship, b []Ship) bool {
 
 	for _, sb := range b {
-		if CheckCollision(a, sb) {
+		if CheckCollision(a, &sb) {
 			return true
 		}
 	}
@@ -153,7 +192,9 @@ func CheckCollisions(a Ship, b []Ship) bool {
 
 }
 
-func CheckCollision(a Ship, b Ship) bool {
+// CheckCollisions check if a collides with b
+//	[a:*Ship]	a ship pointer		[b:*Ship]		b Ship pointer
+func CheckCollision(a *Ship, b *Ship) bool {
 
 	for _, av := range a.Positions {
 		for _, bv := range b.Positions {
@@ -166,11 +207,18 @@ func CheckCollision(a Ship, b Ship) bool {
 
 }
 
-func CheckShot(p Coordinates, s Sea) (bool, int, int) {
+// CheckShipPosition check if in p coordinates in given Sea there's a Ship
+//	[p:*Coordinates]	Coordinate point pointer		[s:*Sea]		b Sea pointer
+//	[return]	bool (collision), ship index, coordinate index
+func CheckShipPosition(p *Coordinates, s *Sea) (bool, int, int) {
 
+	// for each Ships
 	for si, sv := range s.Ships {
+		// for each Positions occuped by
 		for ci, cv := range sv.Positions {
+			// if coordinates == positions
 			if p.Abscissa == cv.Abscissa && p.Ordinate == cv.Ordinate {
+				// return true, ship index, positions index in ship struct
 				return true, si, ci
 			}
 		}
@@ -179,23 +227,16 @@ func CheckShot(p Coordinates, s Sea) (bool, int, int) {
 
 }
 
-func CheckShipPosition(x int, y int, s Sea) (bool, int, int) {
+// CheckSufferedMoves check p coordinates in given Sea's Player
+//	[p:*Coordinates]	Coordinate point pointer		[pp:*Player]		b Player pointer
+//	[return]	bool (collision), ship index, coordinate index
+func CheckSufferedMoves(p *Coordinates, pp *Player) (bool, int) {
 
-	for si, sv := range s.Ships {
-		for ci, cv := range sv.Positions {
-			if x == cv.Abscissa && y == cv.Ordinate {
-				return true, si, ci
-			}
-		}
-	}
-	return false, -1, -1
-
-}
-
-func CheckSeaPosition(x int, y int, p Player) (bool, int) {
-
-	for pi, pv := range p.Suffered {
-		if x == pv.Abscissa && y == pv.Ordinate {
+	// for each suffered
+	for pi, pv := range pp.Suffered {
+		// if coordinates == positions
+		if p.Abscissa == pv.Abscissa && p.Ordinate == pv.Ordinate {
+			// return true, positions index in Player Suffered Moves
 			return true, pi
 		}
 	}
@@ -203,76 +244,64 @@ func CheckSeaPosition(x int, y int, p Player) (bool, int) {
 
 }
 
-func CoordinatesPrettyInfo(c Coordinates) (cs string) {
+// ###########################################################################################################
+// ########################################### STRUCT STRINGIFIER ############################################
+// ###########################################################################################################
 
-	cs = "(" + strconv.Itoa(c.Abscissa) + "; " + strconv.Itoa(c.Ordinate) + ")"
-	return
+// SeaToString print Player Sea
+//	[p:*Player]	Player
+//	[return]	string
+func SeaToString(p *Player) (ss string) {
 
-}
-
-func ShipPrettyInfo(s Ship) (ss string) {
-
-	ss = "\tShip dimensions: " + strconv.Itoa(s.Dimension) + "\n\t\t["
-	for _, pv := range s.Positions {
-		ss += CoordinatesPrettyInfo(pv) + " "
-	}
-	ss += "]"
-	return
-
-}
-
-func SeaPrettyInfo(s Sea) (ss string) {
-
-	ss = "Sea dimensions: " + strconv.Itoa(s.Dimension) + "\n"
-	for _, sv := range s.Ships {
-		if sv.Dimension != 0 {
-			ss += ShipPrettyInfo(sv) + "\n"
-		}
-	}
-	return
-
-}
-
-func StringfySea(p Player) (ss string) {
-
-	ss = "|"
+	// create first line
+	ss = GAME_GRID_BORDER
 	for r := 0; r < p.Sea.Dimension-1; r++ {
 		ss += "-----"
 	}
-	ss += "----|\n"
+	ss += "----"+GAME_GRID_BORDER+"\n"
 
-	s := p.Sea
+	// for each row
+	for r := 0; r < p.Sea.Dimension; r++ {
 
-	for r := 0; r < s.Dimension; r++ {
+		// start with grid border
+		ss += GAME_GRID_BORDER
 
-		ss += "|"
-		for c := 0; c < s.Dimension; c++ {
-			rp, si, ci := CheckShipPosition(r+1, c+1, s)
+		// for each column
+		for c := 0; c < p.Sea.Dimension; c++ {
+
+			// check ShipPosition in Sea
+			rp, si, ci := CheckShipPosition(&Coordinates{Abscissa: r+1, Ordinate: c+1}, &p.Sea)
+
+			// if there's a Sea in position
 			if rp {
-				switch s.Ships[si].Positions[ci].Status {
-				case STATUS_DESTROY:
-					ss += " " + STATUS_DESTROY_BASE + " |"
-				case STATUS_FIRE:
-					ss += " " + STATUS_FIRE_BASE + " |"
-				default:
-					ss += " " + STATUS_OK_BASE + " |"
+
+				// check Ship status in specific position
+				switch p.Sea.Ships[si].Positions[ci].Status {
+
+					// status destroy
+					case STATUS_SHIP_DESTROYED:
+						ss += " " + STR_STATUS_DESTROY + " "+GAME_GRID_BORDER
+					case STATUS_SHIP_BURNING:
+						ss += " " + STR_STATUS_STRICKEN + " "+GAME_GRID_BORDER
+					default:
+						ss += " " + STR_STATUS_OK + " "+GAME_GRID_BORDER
 				}
+
 			} else {
-				pp, pi := CheckSeaPosition(r+1, c+1, p)
+				pp, pi := CheckSufferedMoves(r+1, c+1, p)
 				if pp {
 					switch p.Suffered[pi].Status {
-					case SEA_SHOT:
-						ss += " " + SEA_SHOT_BASE + " |"
+					case STATUS_SEA_STRICKEN:
+						ss += " " + STR_SEA_STRICKEN + " "+GAME_GRID_BORDER
 					default:
-						ss += " " + SEA_BASE + " |"
+						ss += " " + STR_SEA_CELL + " "+GAME_GRID_BORDER
 					}
 				} else {
-					ss += " " + SEA_BASE + " |"
+					ss += " " + STR_SEA_CELL + " "+GAME_GRID_BORDER
 				}
 			}
 		}
-		ss += "\n"
-		ss += "|"
+		ss += "\n"+GAME_GRID_BORDER
 		for c := 0; c < s.Dimension-1; c++ {
 			ss += "-----"
 		}
@@ -284,18 +313,57 @@ func StringfySea(p Player) (ss string) {
 
 }
 
-func (g Game) GunShot(f *Player, t *Player, p Coordinates) {
+// PrettyPrintCoordinatesInfo return String rappresentation of Coordinates
+//	[p:*Coordinates]	Coordinates point pointer
+//	[return]	string
+func PrettyPrintCoordinatesInfo(p *Coordinates) (ps string) {
+
+	ps = "(" + strconv.Itoa(p.Abscissa) + "; " + strconv.Itoa(p.Ordinate) + ")"
+	return
+
+}
+
+// PrettyPrintShipInfo return Ship string info
+//	[s:*Ship]	Ship point pointer
+//	[return]	string
+func PrettyPrintShipInfo(s *Ship) (ss string) {
+
+	ss = "\tShip dimensions: " + strconv.Itoa(s.Dimension) + "\n\t\t["
+	for _, pv := range s.Positions {
+		ss += PrettyPrintCoordinatesInfo(&pv) + " "
+	}
+	ss += "]"
+	return
+
+}
+
+// PrettyPrintSeaInfo return Sea string info
+//	[s:*Ship]	Ship point pointer
+//	[return]	string
+func PrettyPrintSeaInfo(s Sea) (ss string) {
+
+	ss = "Sea dimensions: " + strconv.Itoa(s.Dimension) + "\n"
+	for _, sv := range s.Ships {
+		if sv.Dimension != 0 {
+			ss += PrettyPrintShipInfo(&sv) + "\n"
+		}
+	}
+	return
+
+}
+
+func (g Game) GunShot(f *Player, t *Player, p *Coordinates) {
 
 	if f.GunShot > 0 {
 		f.GunShot--
 	}
-	rs, si, ci := CheckShot(p, t.Sea)
+	rs, si, ci := CheckShipPosition(p, &t.Sea)
 	if rs {
 		f.Moves = append(f.Moves, p)
-		f.Sea.Ships[si].Positions[ci].Status = STATUS_DESTROY
-		p.Status = SEA_SHOT
+		f.Sea.Ships[si].Positions[ci].Status = STATUS_SHIP_DESTROYED
+		p.Status = STATUS_SEA_STRICKEN
 	} else {
-		p.Status = SEA
+		p.Status = STATUS_SEA_OK
 	}
 	t.Suffered = append(t.Suffered, p)
 
@@ -306,15 +374,15 @@ func NetPrintGame(g *Game, m int) {
 	util.CleanScreen()
 	if m == 0 {
 		fmt.Printf(">>> %s's sea\n", g.FirstPlayer.Name)
-		fmt.Println(StringfySea(g.FirstPlayer))
+		fmt.Println(SeaToString(g.FirstPlayer))
 		//fmt.Printf(">>> %s's sea\n", g.SecondPlayer.Name)
-		//fmt.Println(StringfySea(g.SecondPlayer))
+		//fmt.Println(SeaToString(g.SecondPlayer))
 	}
 	if m == 1 {
 		fmt.Printf(">>> %s's sea\n", g.SecondPlayer.Name)
-		fmt.Println(StringfySea(g.SecondPlayer))
+		fmt.Println(SeaToString(g.SecondPlayer))
 		//fmt.Printf(">>> %s's sea\n", g.FirstPlayer.Name)
-		//fmt.Println(StringfySea(g.FirstPlayer))
+		//fmt.Println(SeaToString(g.FirstPlayer))
 	}
 
 }
@@ -366,13 +434,13 @@ func ServerGunShot(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	//s := PrepareSea(10, 5)
-	//fmt.Println(SeaPrettyInfo(s))
-	//fmt.Println(StringfySea(s))
+	//fmt.Println(PrettyPrintSeaInfo(s))
+	//fmt.Println(SeaToString(s))
 	g := PrepareGame(10, 0, "Matteo", 5, 9999, "HAL", 5, 9999)
-	fmt.Println(StringfySea(g.FirstPlayer))
-	fmt.Println(StringfySea(g.SecondPlayer))
+	fmt.Println(SeaToString(g.FirstPlayer))
+	fmt.Println(SeaToString(g.SecondPlayer))
 	//fmt.Println(g.SecondPlayer.Sea.Ships)
 	g.GunShot(&g.FirstPlayer, &g.SecondPlayer, g.SecondPlayer.Sea.Ships[0].Positions[0])
-	fmt.Println(StringfySea(g.SecondPlayer))
+	fmt.Println(SeaToString(g.SecondPlayer))
 
 }
