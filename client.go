@@ -142,7 +142,7 @@ func getCoordinates() (c core.Coordinates) {
 		fmt.Printf("y: ")
 		_, e2 := fmt.Scanf("%d", &y)
 		if e1 == nil && e2 == nil {
-			c = core.Coordinates{}
+			c = core.Coordinates{Abscissa: x, Ordinate: y}
 			break
 		} else {
 			fmt.Println(ERROR_CHOICE)

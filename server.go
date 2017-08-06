@@ -55,6 +55,9 @@ func ServerShotRequest(w http.ResponseWriter, r *http.Request) {
 	// debug print of json
 	//fmt.Println(core.DebugGame(&g))
 
+	// print game
+	fmt.Println(core.PrettyPrintGame(&g))
+
 	// debug pause
 	util.ConsolePause(util.PAUSE_MEX)
 

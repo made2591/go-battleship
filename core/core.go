@@ -24,7 +24,8 @@ const (
 	EXIT_REQUEST  = "/exit"
 
 	SIMULATION_THINKING_TIME = 2000 //milliseconds
-	PRINT_HIDDEN_MODE   = 1
+	PRINT_CALLERSEA_MODE	 = 2
+	PRINT_OPPONENTSEA_MODE   = 1
 
 	GUN_SHOT_COST 		= 10
 	FIRE_SHOT_COST		= 100
@@ -368,27 +369,11 @@ func SeaToString(p *Player, h int) (ss string) {
 		// for each column
 		for c := 0; c < p.Sea.Dimension; c++ {
 
-			// check ShipPosition in Sea
-			rp, si, ci := CheckShipPosition(&Coordinates{Abscissa: r+1, Ordinate: c+1}, &p.Sea)
+			// if we are drawing caller's Sea
+			if h == PRINT_CALLERSEA_MODE {
 
-			if h == PRINT_HIDDEN_MODE {
-
-				// check SufferedMoves in Sea
-				pp, pi := CheckSufferedMoves(&Coordinates{Abscissa: r + 1, Ordinate: c + 1}, p)
-
-				// if opponent shot in the cell
-				if pp {
-
-					// add correct status representation
-					ss += " " + StatusToString(p.Suffered[pi].Status) + " " + GAME_GRID_BORDER
-
-				} else {
-
-					ss += " " + STR_SEA_OK + " " + GAME_GRID_BORDER
-
-				}
-
-			} else {
+				// check ShipPosition in Sea
+				rp, si, ci := CheckShipPosition(&Coordinates{Abscissa: r + 1, Ordinate: c + 1}, &p.Sea)
 
 				// if there's a Sea in position
 				if rp {
@@ -412,8 +397,31 @@ func SeaToString(p *Player, h int) (ss string) {
 						ss += " " + STR_SEA_OK + " " + GAME_GRID_BORDER
 
 					}
+
 				}
+
 			}
+
+			// if we are drawing caller's Sea
+			if h == PRINT_OPPONENTSEA_MODE {
+
+				// check SufferedMoves in Sea
+				pp, pi := CheckSufferedMoves(&Coordinates{Abscissa: r + 1, Ordinate: c + 1}, p)
+
+				// if opponent shot in the cell
+				if pp {
+
+					// add correct status representation
+					ss += " " + StatusToString(p.Suffered[pi].Status) + " " + GAME_GRID_BORDER
+
+				} else {
+
+					ss += " " + STR_SEA_OK + " " + GAME_GRID_BORDER
+
+				}
+
+			}
+
 		}
 
 		// create separation line
@@ -491,9 +499,9 @@ func PrettyPrintGame(g *Game) (gs string) {
 	util.CleanScreen()
 
 	gs += ">>> "+g.FirstPlayer.Name+"'s sea\n"
-	gs += SeaToString(&g.FirstPlayer, -1)
+	gs += SeaToString(&g.FirstPlayer, PRINT_CALLERSEA_MODE)
 	gs += ">>> "+g.SecondPlayer.Name+"'s sea\n"
-	gs += SeaToString(&g.SecondPlayer, PRINT_HIDDEN_MODE)
+	gs += SeaToString(&g.SecondPlayer, PRINT_OPPONENTSEA_MODE)
 	gs += "\n"+ShotHistory(g)
 
 	return
