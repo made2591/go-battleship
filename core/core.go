@@ -10,6 +10,7 @@ import (
 	util "github.com/made2591/go-battleship/util"
 
 	"net/http"
+	"time"
 )
 
 // Constants for default and game config
@@ -23,7 +24,7 @@ const (
 	SHOT_REQUEST  = "/shot"
 	EXIT_REQUEST  = "/exit"
 
-	SIMULATION_THINKING_TIME = 2000 //milliseconds
+	SIMULATION_THINKING_TIME = 1 //milliseconds
 	PRINT_CALLERSEA_MODE	 = 2
 	PRINT_OPPONENTSEA_MODE   = 1
 
@@ -195,6 +196,10 @@ func PrepareShip(sd int, gd int) (s Ship) {
 // ########################################### GAME LOGIC METHODS ############################################
 // ###########################################################################################################
 
+func Timeout() {
+	time.Sleep(time.Second * SIMULATION_THINKING_TIME)
+}
+
 // GameDecoder decode game in HTTP request
 func GameDecoder(r *http.Request) (g Game) {
 
@@ -288,6 +293,40 @@ func CheckSufferedMoves(p *Coordinates, pp *Player) (bool, int) {
 
 }
 
+// DestroyShip check if Ship hit is destroyed
+//	[t:*Player]			to Player		pointer
+//	[rs:bool]			bool hit or not [si/ci:int]	Ship / Coordinate position
+func DestroyShip(t *Player, rs bool, si int, ci int) {
+
+	// if ship is stricken
+	if rs {
+		// check if all position is stricken
+		all_stricken := true
+		for _, cv := range t.Sea.Ships[si].Positions {
+			// if status is different
+			if cv.Status != STATUS_SHIP_STRICKEN {
+				// stop check
+				all_stricken = false
+				break
+			}
+		}
+		// if so, update
+		if all_stricken {
+			// update each position status of ship
+			for ci, cv := range t.Sea.Ships[si].Positions {
+				t.Sea.Ships[si].Positions[ci].Status = STATUS_SHIP_DESTROYED
+				// update each position status in suffered set
+				for pi, pv := range t.Suffered {
+					if cv.Abscissa == pv.Abscissa && cv.Ordinate == pv.Ordinate {
+						t.Suffered[pi].Status = STATUS_SHIP_DESTROYED
+					}
+				}
+			}
+		}
+	}
+
+}
+
 // GunShot from p Player to t Player in p Coordinates
 //	[f:*Player]			from Player	pointer		//	[t:*Player]			to Player pointer
 //	[p:*Coordinates]	Coordinate point pointer
@@ -305,17 +344,18 @@ func GunShot(f *Player, t *Player, p *Coordinates) {
 
 	// if Ship hit
 	if rs {
-		// TODO CHECK IF SHIP IS DESTROYED
 		// t player ship stricken
 		t.Sea.Ships[si].Positions[ci].Status = STATUS_SHIP_STRICKEN
-		np = Coordinates{Abscissa: p.Abscissa, Ordinate: p.Ordinate, Status: STATUS_SHIP_STRICKEN}
+		np = Coordinates{Abscissa: p.Abscissa, Ordinate: p.Ordinate, Status: STATUS_SHIP_STRICKEN }
 	} else {
-		p.Status = STATUS_SEA_STRICKEN
-		np = Coordinates{Abscissa: p.Abscissa, Ordinate: p.Ordinate, Status: STATUS_SEA_STRICKEN}
+		np = Coordinates{Abscissa: p.Abscissa, Ordinate: p.Ordinate, Status: STATUS_SEA_STRICKEN }
 	}
 
-	// add to suffered
+	// add suffered move
 	t.Suffered = append(t.Suffered, np)
+
+	// check if Ship is destroyed
+	DestroyShip(t, rs, si, ci)
 
 }
 
@@ -402,7 +442,7 @@ func SeaToString(p *Player, h int) (ss string) {
 
 			}
 
-			// if we are drawing caller's Sea
+			// if we are drawing opponent's Sea
 			if h == PRINT_OPPONENTSEA_MODE {
 
 				// check SufferedMoves in Sea

@@ -59,7 +59,8 @@ func ServerShotRequest(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(core.PrettyPrintGame(&g))
 
 	// debug pause
-	util.ConsolePause(util.PAUSE_MEX)
+	//util.ConsolePause(util.PAUSE_MEX)
+	core.Timeout()
 
 	// create Random SHOT on second PLAYER
 	// TODO: IMPLEMENT STRATEGY
@@ -68,7 +69,8 @@ func ServerShotRequest(w http.ResponseWriter, r *http.Request) {
 	core.GunShot(&g.FirstPlayer, &g.SecondPlayer, &g.SecondPlayer.Sea.Ships[s].Positions[p])
 
 	// debug pause
-	util.ConsolePause(util.PAUSE_MEX)
+	//util.ConsolePause(util.PAUSE_MEX)
+	core.Timeout()
 
 	// print game
 	fmt.Println(core.PrettyPrintGame(&g))
